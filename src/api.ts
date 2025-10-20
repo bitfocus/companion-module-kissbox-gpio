@@ -1,7 +1,7 @@
 import type { KissboxGPIOInstance } from './main.js'
 import { InstanceStatus } from '@companion-module/base'
 import { createSocket } from 'node:dgram'
-import { CheckVariables } from './variables.js'
+import { UpdateVariableValues } from './variables.js'
 
 // Protocol command bytes
 const CMD_READ_ALL = 0xa0 // Read all channels from a slot
@@ -294,7 +294,7 @@ function handleIncomingMessage(self: KissboxGPIOInstance, data: Buffer): void {
  */
 function updateUI(self: KissboxGPIOInstance): void {
 	self.checkFeedbacks()
-	CheckVariables(self)
+	UpdateVariableValues(self)
 }
 
 /**

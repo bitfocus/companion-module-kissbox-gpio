@@ -1,5 +1,5 @@
 import { InstanceBase, runEntrypoint, InstanceStatus, type SomeCompanionConfigField } from '@companion-module/base'
-import { GetConfigFields, type ModuleConfig } from './config.js'
+import { GetConfigFields, type ModuleConfig, type CardType, CARD_INFO } from './config.js'
 import { UpgradeScripts } from './upgrades.js'
 import { UpdateActions } from './actions.js'
 import { UpdateFeedbacks } from './feedbacks.js'
@@ -17,6 +17,14 @@ export class KissboxGPIOInstance extends InstanceBase<ModuleConfig> {
 		port: 10001,
 		udpReceivePort: 0,
 		deviceType: 'IO8CC',
+		slot0: 'empty',
+		slot1: 'empty',
+		slot2: 'empty',
+		slot3: 'empty',
+		slot4: 'empty',
+		slot5: 'empty',
+		slot6: 'empty',
+		slot7: 'empty',
 		verbose: false,
 	}
 
@@ -43,6 +51,48 @@ export class KissboxGPIOInstance extends InstanceBase<ModuleConfig> {
 		return this.config.deviceType === 'IO3CC' ? 3 : 8
 	}
 
+	// Get card type for a slot
+	getCardType(slot: number): CardType {
+		switch (slot) {
+			case 0:
+				return this.config.slot0
+			case 1:
+				return this.config.slot1
+			case 2:
+				return this.config.slot2
+			case 3:
+				return this.config.slot3 || 'empty'
+			case 4:
+				return this.config.slot4 || 'empty'
+			case 5:
+				return this.config.slot5 || 'empty'
+			case 6:
+				return this.config.slot6 || 'empty'
+			case 7:
+				return this.config.slot7 || 'empty'
+			default:
+				return 'empty'
+		}
+	}
+
+	// Get channel count for a slot
+	getChannelCount(slot: number): number {
+		const cardType = this.getCardType(slot)
+		return CARD_INFO[cardType].channels
+	}
+
+	// Check if slot has an input card
+	isInputCard(slot: number): boolean {
+		const cardType = this.getCardType(slot)
+		return CARD_INFO[cardType].isInput
+	}
+
+	// Check if slot has an output card
+	isOutputCard(slot: number): boolean {
+		const cardType = this.getCardType(slot)
+		return !CARD_INFO[cardType].isInput && cardType !== 'empty'
+	}
+
 	async init(config: ModuleConfig): Promise<void> {
 		try {
 			this.log('debug', 'Starting KISSBOX GPIO module initialization')
@@ -51,8 +101,16 @@ export class KissboxGPIOInstance extends InstanceBase<ModuleConfig> {
 			this.config = {
 				host: config?.host || '192.168.1.100',
 				port: config?.port || 10001,
-				udpReceivePort: config?.udpReceivePort || 0,
+				udpReceivePort: config?.udpReceivePort || 10002,
 				deviceType: config?.deviceType || 'IO8CC',
+				slot0: config?.slot0 || 'empty',
+				slot1: config?.slot1 || 'empty',
+				slot2: config?.slot2 || 'empty',
+				slot3: config?.slot3 || 'empty',
+				slot4: config?.slot4 || 'empty',
+				slot5: config?.slot5 || 'empty',
+				slot6: config?.slot6 || 'empty',
+				slot7: config?.slot7 || 'empty',
 				verbose: config?.verbose !== undefined ? config.verbose : false,
 			}
 
@@ -94,7 +152,8 @@ export class KissboxGPIOInstance extends InstanceBase<ModuleConfig> {
 		this.channelState.clear()
 		for (let slot = 0; slot < this.maxSlots; slot++) {
 			const channels = new Map<number, number>()
-			for (let channel = 0; channel < 8; channel++) {
+			const channelCount = this.getChannelCount(slot)
+			for (let channel = 0; channel < channelCount; channel++) {
 				channels.set(channel, 0)
 			}
 			this.channelState.set(slot, channels)
@@ -131,8 +190,16 @@ export class KissboxGPIOInstance extends InstanceBase<ModuleConfig> {
 			this.config = {
 				host: config?.host || '192.168.1.100',
 				port: config?.port || 10001,
-				udpReceivePort: config?.udpReceivePort || 0,
+				udpReceivePort: config?.udpReceivePort || 10002,
 				deviceType: config?.deviceType || 'IO8CC',
+				slot0: config?.slot0 || 'empty',
+				slot1: config?.slot1 || 'empty',
+				slot2: config?.slot2 || 'empty',
+				slot3: config?.slot3 || 'empty',
+				slot4: config?.slot4 || 'empty',
+				slot5: config?.slot5 || 'empty',
+				slot6: config?.slot6 || 'empty',
+				slot7: config?.slot7 || 'empty',
 				verbose: config?.verbose !== undefined ? config.verbose : false,
 			}
 

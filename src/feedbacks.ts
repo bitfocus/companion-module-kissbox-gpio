@@ -4,359 +4,306 @@ import {
 	type CompanionFeedbackDefinitions,
 	type CompanionFeedbackBooleanEvent,
 } from '@companion-module/base'
+import { CARD_INFO } from './config.js'
 
 export function UpdateFeedbacks(self: KissboxGPIOInstance): void {
-	// Generate slot choices based on device type
-	const slotChoices = []
-	for (let i = 0; i < self.maxSlots; i++) {
-		slotChoices.push({ id: i, label: `Slot ${i + 1}` })
-	}
+	const feedbacks: CompanionFeedbackDefinitions = {}
 
-	// Channel choices (0-7)
-	const channelChoices = []
-	for (let i = 0; i < 8; i++) {
-		channelChoices.push({ id: i, label: `Channel ${i + 1}` })
-	}
+	// Generate feedbacks for each configured card
+	for (let slot = 0; slot < self.maxSlots; slot++) {
+		const cardType = self.getCardType(slot)
+		const cardInfo = CARD_INFO[cardType]
 
-	const feedbacks: CompanionFeedbackDefinitions = {
-		channel_is_on: {
-			name: 'Channel is ON',
-			description: 'Change button style when a channel is ON (value > 0)',
-			type: 'boolean',
-			defaultStyle: {
-				bgcolor: combineRgb(0, 255, 0),
-				color: combineRgb(0, 0, 0),
-			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
-				},
-				{
-					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel',
-					default: 0,
-					choices: channelChoices,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number; channel: number }
-				const slot = Number(opt.slot)
-				const channel = Number(opt.channel)
-				const value = self.channelState.get(slot)?.get(channel) ?? 0
-				return value > 0
-			},
-		},
+		if (cardType === 'empty') continue
 
-		channel_is_off: {
-			name: 'Channel is OFF',
-			description: 'Change button style when a channel is OFF (value = 0)',
-			type: 'boolean',
-			defaultStyle: {
-				bgcolor: combineRgb(255, 0, 0),
-				color: combineRgb(255, 255, 255),
-			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
-				},
-				{
-					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel',
-					default: 0,
-					choices: channelChoices,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number; channel: number }
-				const slot = Number(opt.slot)
-				const channel = Number(opt.channel)
-				const value = self.channelState.get(slot)?.get(channel) ?? 0
-				return value === 0
-			},
-		},
+		const channelCount = cardInfo.channels
+		const isAnalog = cardInfo.isAnalog
+		const isInput = cardInfo.isInput
+		const slotLabel = `Slot ${slot + 1} (${cardInfo.name})`
+		const portType = isInput ? 'Input' : 'Output'
 
-		channel_value_equals: {
-			name: 'Channel Value Equals',
-			description: 'Change button style when channel value equals a specific value',
-			type: 'boolean',
-			defaultStyle: {
-				bgcolor: combineRgb(0, 200, 255),
-				color: combineRgb(0, 0, 0),
-			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
-				},
-				{
-					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel',
-					default: 0,
-					choices: channelChoices,
-				},
-				{
-					id: 'value',
-					type: 'number',
-					label: 'Value',
-					default: 128,
-					min: 0,
-					max: 255,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number; channel: number; value: number }
-				const slot = Number(opt.slot)
-				const channel = Number(opt.channel)
-				const expectedValue = Number(opt.value)
-				const actualValue = self.channelState.get(slot)?.get(channel) ?? 0
-				return actualValue === expectedValue
-			},
-		},
+		// Generate channel choices for this card
+		const channelChoices = []
+		for (let i = 0; i < channelCount; i++) {
+			channelChoices.push({ id: i, label: `${portType} ${i + 1}` })
+		}
 
-		channel_value_greater_than: {
-			name: 'Channel Value Greater Than',
-			description: 'Change button style when channel value is greater than a threshold',
-			type: 'boolean',
-			defaultStyle: {
-				bgcolor: combineRgb(255, 200, 0),
-				color: combineRgb(0, 0, 0),
-			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
+		// DIGITAL FEEDBACKS (for both digital inputs and outputs)
+		if (!isAnalog) {
+			// Is ON feedback
+			feedbacks[`is_on_slot${slot}`] = {
+				name: `${slotLabel}: ${portType} is ON`,
+				description: `Change button style when ${portType.toLowerCase()} is ON`,
+				type: 'boolean',
+				defaultStyle: {
+					bgcolor: combineRgb(0, 255, 0),
+					color: combineRgb(0, 0, 0),
 				},
-				{
-					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel',
-					default: 0,
-					choices: channelChoices,
+				options: [
+					{
+						id: 'channel',
+						type: 'dropdown',
+						label: portType,
+						default: 0,
+						choices: channelChoices,
+					},
+				],
+				callback: (event: CompanionFeedbackBooleanEvent): boolean => {
+					const opt = event.options as { channel: number }
+					const channel = Number(opt.channel)
+					const value = self.channelState.get(slot)?.get(channel) ?? 0
+					return value > 0
 				},
-				{
-					id: 'threshold',
-					type: 'number',
-					label: 'Threshold',
-					default: 128,
-					min: 0,
-					max: 255,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number; channel: number; threshold: number }
-				const slot = Number(opt.slot)
-				const channel = Number(opt.channel)
-				const threshold = Number(opt.threshold)
-				const value = self.channelState.get(slot)?.get(channel) ?? 0
-				return value > threshold
-			},
-		},
+			}
 
-		channel_value_less_than: {
-			name: 'Channel Value Less Than',
-			description: 'Change button style when channel value is less than a threshold',
-			type: 'boolean',
-			defaultStyle: {
-				bgcolor: combineRgb(100, 100, 255),
-				color: combineRgb(255, 255, 255),
-			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
+			// Is OFF feedback
+			feedbacks[`is_off_slot${slot}`] = {
+				name: `${slotLabel}: ${portType} is OFF`,
+				description: `Change button style when ${portType.toLowerCase()} is OFF`,
+				type: 'boolean',
+				defaultStyle: {
+					bgcolor: combineRgb(100, 0, 0),
+					color: combineRgb(200, 200, 200),
 				},
-				{
-					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel',
-					default: 0,
-					choices: channelChoices,
+				options: [
+					{
+						id: 'channel',
+						type: 'dropdown',
+						label: portType,
+						default: 0,
+						choices: channelChoices,
+					},
+				],
+				callback: (event: CompanionFeedbackBooleanEvent): boolean => {
+					const opt = event.options as { channel: number }
+					const channel = Number(opt.channel)
+					const value = self.channelState.get(slot)?.get(channel) ?? 0
+					return value === 0
 				},
-				{
-					id: 'threshold',
-					type: 'number',
-					label: 'Threshold',
-					default: 128,
-					min: 0,
-					max: 255,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number; channel: number; threshold: number }
-				const slot = Number(opt.slot)
-				const channel = Number(opt.channel)
-				const threshold = Number(opt.threshold)
-				const value = self.channelState.get(slot)?.get(channel) ?? 0
-				return value < threshold
-			},
-		},
+			}
+		}
 
-		channel_value_in_range: {
-			name: 'Channel Value In Range',
-			description: 'Change button style when channel value is within a specific range',
-			type: 'boolean',
-			defaultStyle: {
-				bgcolor: combineRgb(255, 0, 255),
-				color: combineRgb(255, 255, 255),
-			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
+		// ANALOG FEEDBACKS (for both analog inputs and outputs)
+		if (isAnalog) {
+			// Value equals
+			feedbacks[`value_equals_slot${slot}`] = {
+				name: `${slotLabel}: ${portType} Value Equals`,
+				description: `Change button style when ${portType.toLowerCase()} value equals a specific value`,
+				type: 'boolean',
+				defaultStyle: {
+					bgcolor: combineRgb(0, 200, 255),
+					color: combineRgb(0, 0, 0),
 				},
-				{
-					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel',
-					default: 0,
-					choices: channelChoices,
+				options: [
+					{
+						id: 'channel',
+						type: 'dropdown',
+						label: portType,
+						default: 0,
+						choices: channelChoices,
+					},
+					{
+						id: 'value',
+						type: 'number',
+						label: 'Value',
+						default: 128,
+						min: 0,
+						max: 255,
+					},
+				],
+				callback: (event: CompanionFeedbackBooleanEvent): boolean => {
+					const opt = event.options as { channel: number; value: number }
+					const channel = Number(opt.channel)
+					const expectedValue = Number(opt.value)
+					const actualValue = self.channelState.get(slot)?.get(channel) ?? 0
+					return actualValue === expectedValue
 				},
-				{
-					id: 'min',
-					type: 'number',
-					label: 'Minimum Value',
-					default: 64,
-					min: 0,
-					max: 255,
-				},
-				{
-					id: 'max',
-					type: 'number',
-					label: 'Maximum Value',
-					default: 192,
-					min: 0,
-					max: 255,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number; channel: number; min: number; max: number }
-				const slot = Number(opt.slot)
-				const channel = Number(opt.channel)
-				const min = Number(opt.min)
-				const max = Number(opt.max)
-				const value = self.channelState.get(slot)?.get(channel) ?? 0
-				return value >= min && value <= max
-			},
-		},
+			}
 
-		any_channel_on_in_slot: {
-			name: 'Any Channel ON in Slot',
-			description: 'Change button style when any channel in a slot is ON',
+			// Value greater than
+			feedbacks[`value_greater_slot${slot}`] = {
+				name: `${slotLabel}: ${portType} Greater Than`,
+				description: `Change button style when ${portType.toLowerCase()} value is greater than threshold`,
+				type: 'boolean',
+				defaultStyle: {
+					bgcolor: combineRgb(255, 200, 0),
+					color: combineRgb(0, 0, 0),
+				},
+				options: [
+					{
+						id: 'channel',
+						type: 'dropdown',
+						label: portType,
+						default: 0,
+						choices: channelChoices,
+					},
+					{
+						id: 'threshold',
+						type: 'number',
+						label: 'Threshold',
+						default: 128,
+						min: 0,
+						max: 255,
+					},
+				],
+				callback: (event: CompanionFeedbackBooleanEvent): boolean => {
+					const opt = event.options as { channel: number; threshold: number }
+					const channel = Number(opt.channel)
+					const threshold = Number(opt.threshold)
+					const value = self.channelState.get(slot)?.get(channel) ?? 0
+					return value > threshold
+				},
+			}
+
+			// Value less than
+			feedbacks[`value_less_slot${slot}`] = {
+				name: `${slotLabel}: ${portType} Less Than`,
+				description: `Change button style when ${portType.toLowerCase()} value is less than threshold`,
+				type: 'boolean',
+				defaultStyle: {
+					bgcolor: combineRgb(100, 100, 255),
+					color: combineRgb(255, 255, 255),
+				},
+				options: [
+					{
+						id: 'channel',
+						type: 'dropdown',
+						label: portType,
+						default: 0,
+						choices: channelChoices,
+					},
+					{
+						id: 'threshold',
+						type: 'number',
+						label: 'Threshold',
+						default: 128,
+						min: 0,
+						max: 255,
+					},
+				],
+				callback: (event: CompanionFeedbackBooleanEvent): boolean => {
+					const opt = event.options as { channel: number; threshold: number }
+					const channel = Number(opt.channel)
+					const threshold = Number(opt.threshold)
+					const value = self.channelState.get(slot)?.get(channel) ?? 0
+					return value < threshold
+				},
+			}
+
+			// Value in range
+			feedbacks[`value_in_range_slot${slot}`] = {
+				name: `${slotLabel}: ${portType} In Range`,
+				description: `Change button style when ${portType.toLowerCase()} value is within a range`,
+				type: 'boolean',
+				defaultStyle: {
+					bgcolor: combineRgb(255, 0, 255),
+					color: combineRgb(255, 255, 255),
+				},
+				options: [
+					{
+						id: 'channel',
+						type: 'dropdown',
+						label: portType,
+						default: 0,
+						choices: channelChoices,
+					},
+					{
+						id: 'min',
+						type: 'number',
+						label: 'Minimum Value',
+						default: 64,
+						min: 0,
+						max: 255,
+					},
+					{
+						id: 'max',
+						type: 'number',
+						label: 'Maximum Value',
+						default: 192,
+						min: 0,
+						max: 255,
+					},
+				],
+				callback: (event: CompanionFeedbackBooleanEvent): boolean => {
+					const opt = event.options as { channel: number; min: number; max: number }
+					const channel = Number(opt.channel)
+					const min = Number(opt.min)
+					const max = Number(opt.max)
+					const value = self.channelState.get(slot)?.get(channel) ?? 0
+					return value >= min && value <= max
+				},
+			}
+		}
+
+		// SLOT-LEVEL FEEDBACKS (any type of card)
+		// Any port active
+		feedbacks[`any_active_slot${slot}`] = {
+			name: `${slotLabel}: Any ${portType} Active`,
+			description: `Change button style when any ${portType.toLowerCase()} is active`,
 			type: 'boolean',
 			defaultStyle: {
 				bgcolor: combineRgb(0, 150, 255),
 				color: combineRgb(255, 255, 255),
 			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number }
-				const slot = Number(opt.slot)
+			options: [],
+			callback: (): boolean => {
 				const channels = self.channelState.get(slot)
 				if (!channels) return false
 
-				for (let i = 0; i < 8; i++) {
+				for (let i = 0; i < channelCount; i++) {
 					if ((channels.get(i) ?? 0) > 0) {
 						return true
 					}
 				}
 				return false
 			},
-		},
+		}
 
-		all_channels_on_in_slot: {
-			name: 'All Channels ON in Slot',
-			description: 'Change button style when all channels in a slot are ON',
+		// All ports active
+		feedbacks[`all_active_slot${slot}`] = {
+			name: `${slotLabel}: All ${portType}s Active`,
+			description: `Change button style when all ${portType.toLowerCase()}s are active`,
 			type: 'boolean',
 			defaultStyle: {
 				bgcolor: combineRgb(0, 255, 100),
 				color: combineRgb(0, 0, 0),
 			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number }
-				const slot = Number(opt.slot)
+			options: [],
+			callback: (): boolean => {
 				const channels = self.channelState.get(slot)
 				if (!channels) return false
 
-				for (let i = 0; i < 8; i++) {
+				for (let i = 0; i < channelCount; i++) {
 					if ((channels.get(i) ?? 0) === 0) {
 						return false
 					}
 				}
 				return true
 			},
-		},
+		}
 
-		all_channels_off_in_slot: {
-			name: 'All Channels OFF in Slot',
-			description: 'Change button style when all channels in a slot are OFF',
+		// All ports inactive
+		feedbacks[`all_inactive_slot${slot}`] = {
+			name: `${slotLabel}: All ${portType}s Inactive`,
+			description: `Change button style when all ${portType.toLowerCase()}s are inactive`,
 			type: 'boolean',
 			defaultStyle: {
 				bgcolor: combineRgb(64, 64, 64),
 				color: combineRgb(200, 200, 200),
 			},
-			options: [
-				{
-					id: 'slot',
-					type: 'dropdown',
-					label: 'Slot',
-					default: 0,
-					choices: slotChoices,
-				},
-			],
-			callback: (event: CompanionFeedbackBooleanEvent): boolean => {
-				const opt = event.options as { slot: number }
-				const slot = Number(opt.slot)
+			options: [],
+			callback: (): boolean => {
 				const channels = self.channelState.get(slot)
 				if (!channels) return true
 
-				for (let i = 0; i < 8; i++) {
+				for (let i = 0; i < channelCount; i++) {
 					if ((channels.get(i) ?? 0) > 0) {
 						return false
 					}
 				}
 				return true
 			},
-		},
+		}
 	}
 
 	self.setFeedbackDefinitions(feedbacks)
