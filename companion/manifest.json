@@ -3,7 +3,7 @@
 	"name": "kissbox-gpio",
 	"shortname": "kissbox-gpio",
 	"description": "Control KISSBOX IO3CC and IO8CC GPIO devices",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"license": "MIT",
 	"repository": "git+https://github.com/bitfocus/companion-module-kissbox-gpio.git",
 	"bugs": "https://github.com/bitfocus/companion-module-kissbox-gpio/issues",
